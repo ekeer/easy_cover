@@ -15,6 +15,26 @@
   font-style: normal;
 }
 
+/* MiSans font - Add font files to public/fonts/ directory */
+/* Download from: https://github.com/dsrkafuu/misans-vf */
+@font-face {
+  font-family: 'MiSans';
+  src: local('MiSans'), local('MiSans-Regular');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* HarmonyOS Sans font - Add font files to public/fonts/ directory */
+/* Download from: https://developer.harmonyos.com/cn/design/resource */
+@font-face {
+  font-family: 'HarmonyOS Sans';
+  src: local('HarmonyOS Sans'), local('HarmonyOS-Sans');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

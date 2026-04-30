@@ -186,13 +186,18 @@ export default function Controls() {
       pixelRatio: 2,
       cacheBust: true,
       filter: (n: HTMLElement) => !(n.classList && n.classList.contains('export-exclude')),
+      // Skip inlining external stylesheets to avoid CORS issues
+      skipFonts: false,
+      preferredFontFormat: 'woff2',
     };
 
     try {
+      // Wait for all fonts to be loaded
       if (document.fonts && (document.fonts as any).ready) {
         await (document.fonts as any).ready;
       }
 
+      // Wait for all images to load
       const images = Array.from(node.querySelectorAll('img'));
       await Promise.all(
         images.map((img) => {
@@ -207,7 +212,13 @@ export default function Controls() {
 
       // Warm-up: html-to-image's first call often misses lazily-loaded resources
       // (Iconify SVGs, custom fonts, drop-shadow filter targets). Discard it.
-      await toPng(node as HTMLElement, options);
+      try {
+        await toPng(node as HTMLElement, options);
+      } catch (warmupErr) {
+        console.warn('Warmup render had issues (expected):', warmupErr);
+      }
+      
+      // Actual export
       const dataUrl = await toPng(node as HTMLElement, options);
 
       const link = document.createElement('a');
@@ -216,7 +227,7 @@ export default function Controls() {
       link.click();
     } catch (err) {
       console.error('Export failed', err);
-      alert('导出失败，请重试');
+      alert('导出失败。如果使用了外部字体，请尝试使用本地字体或上传字体文件。');
     }
   };
 
