@@ -181,12 +181,58 @@ export default function Controls() {
     const node = document.getElementById('canvas-export-target');
     if (!node) return;
 
+    // Patch CSSStyleSheet.prototype.cssRules to prevent SecurityError from
+    // cross-origin stylesheets (CDN fonts like fonts.cdnfonts.com, cdn.jsdelivr.net).
+    // html-to-image iterates document.styleSheets and reads .cssRules on each;
+    // cross-origin sheets throw, breaking the export.
+    const proto = CSSStyleSheet.prototype as any;
+    const origDescriptor = Object.getOwnPropertyDescriptor(proto, 'cssRules');
+    if (origDescriptor?.get) {
+      const origGet = origDescriptor.get;
+      Object.defineProperty(proto, 'cssRules', {
+        get() {
+          try {
+            return origGet.call(this);
+          } catch {
+            return [] as any;
+          }
+        },
+        configurable: true,
+      });
+    }
+
+    // Temporarily inject self-hosted font CSS as inline <style> so html-to-image
+    // can read its rules without hitting CORS on external CDN link elements.
+    let injectedStyle: HTMLStyleElement | null = null;
+    try {
+      const remoteHrefs = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+        .map((l) => (l as HTMLLinkElement).href)
+        .filter((h) => {
+          try { return new URL(h).origin !== location.origin; } catch { return false; }
+        });
+      if (remoteHrefs.length > 0) {
+        const cssParts = await Promise.all(
+          remoteHrefs.map((href) =>
+            fetch(href, { mode: 'cors' })
+              .then((r) => (r.ok ? r.text() : ''))
+              .catch(() => '')
+          )
+        );
+        const combined = cssParts.filter(Boolean).join('\n');
+        if (combined) {
+          injectedStyle = document.createElement('style');
+          injectedStyle.dataset.exportInjected = 'true';
+          injectedStyle.textContent = combined;
+          document.head.appendChild(injectedStyle);
+        }
+      }
+    } catch { /* best-effort pre-fetch */ }
+
     const options = {
       quality: 0.95,
       pixelRatio: 2,
       cacheBust: true,
       filter: (n: HTMLElement) => !(n.classList && n.classList.contains('export-exclude')),
-      // Skip inlining external stylesheets to avoid CORS issues
       skipFonts: false,
       preferredFontFormat: 'woff2',
     };
@@ -211,13 +257,12 @@ export default function Controls() {
       );
 
       // Warm-up: html-to-image's first call often misses lazily-loaded resources
-      // (Iconify SVGs, custom fonts, drop-shadow filter targets). Discard it.
       try {
         await toPng(node as HTMLElement, options);
       } catch (warmupErr) {
         console.warn('Warmup render had issues (expected):', warmupErr);
       }
-      
+
       // Actual export
       const dataUrl = await toPng(node as HTMLElement, options);
 
@@ -228,6 +273,15 @@ export default function Controls() {
     } catch (err) {
       console.error('Export failed', err);
       alert('导出失败。如果使用了外部字体，请尝试使用本地字体或上传字体文件。');
+    } finally {
+      // Restore original cssRules getter
+      if (origDescriptor?.get) {
+        Object.defineProperty(proto, 'cssRules', origDescriptor);
+      }
+      // Remove injected style
+      if (injectedStyle) {
+        injectedStyle.remove();
+      }
     }
   };
 
