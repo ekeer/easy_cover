@@ -85,14 +85,16 @@ export default function Canvas() {
           }}
       >
           {icon.customIconUrl ? (
-              <img 
-                  src={icon.customIconUrl} 
-                  alt="Custom Icon" 
-                  className="w-full h-full object-contain"
+              <img
+                  src={icon.customIconUrl}
+                  alt="Custom Icon"
                   style={{
                       width: `${icon.size}px`,
                       height: `${icon.size}px`,
+                      minWidth: `${icon.size}px`,
+                      minHeight: `${icon.size}px`,
                       borderRadius: `${icon.customIconRadius / 2}%`,
+                      objectFit: 'contain',
                   }}
               />
           ) : (
@@ -223,7 +225,7 @@ export default function Canvas() {
       >
         <div 
             id="canvas-export-target" 
-            className="w-full h-full relative overflow-hidden flex flex-col items-center justify-center"
+            className="w-full h-full relative flex flex-col items-center justify-center"
         >
             {/* Background Layer */}
             <div

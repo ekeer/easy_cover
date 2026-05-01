@@ -100,18 +100,26 @@ export default function Controls() {
   const pct = (p: number) => Math.max(1, Math.round(canvasMax * p));
 
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
+      const url = await fileToDataUrl(file);
       store.updateBackground({ type: 'image', imageUrl: url });
     }
   };
 
-  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
+      const url = await fileToDataUrl(file);
       store.updateIcon({ customIconUrl: url });
     }
   };
@@ -231,13 +239,16 @@ export default function Controls() {
     const options = {
       quality: 0.95,
       pixelRatio: 2,
-      cacheBust: true,
+      cacheBust: false,
       filter: (n: HTMLElement) => !(n.classList && n.classList.contains('export-exclude')),
       skipFonts: false,
       preferredFontFormat: 'woff2',
     };
 
     try {
+      // Clip overflow during export so content outside the canvas is excluded
+      node.style.overflow = 'hidden';
+
       // Wait for all fonts to be loaded
       if (document.fonts && (document.fonts as any).ready) {
         await (document.fonts as any).ready;
@@ -274,6 +285,7 @@ export default function Controls() {
       console.error('Export failed', err);
       alert('导出失败。如果使用了外部字体，请尝试使用本地字体或上传字体文件。');
     } finally {
+      node.style.overflow = '';
       // Restore original cssRules getter
       if (origDescriptor?.get) {
         Object.defineProperty(proto, 'cssRules', origDescriptor);
