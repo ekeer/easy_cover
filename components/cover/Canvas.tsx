@@ -237,6 +237,7 @@ export default function Canvas() {
                     <img 
                         src={background.imageUrl}
                         alt="Background"
+                        crossOrigin="anonymous"
                         className="absolute inset-0 w-full h-full object-contain pointer-events-none"
                         style={{
                             filter: `blur(${background.blur}px)`,
