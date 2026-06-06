@@ -207,48 +207,95 @@ export default function Controls() {
   };
 
   const handleExport = async () => {
-    const node = document.getElementById('canvas-export-target');
-    if (!node) return;
+  const node = document.getElementById('canvas-export-target');
+  if (!node) return;
 
-    const options = {
-      quality: 0.95,
-      pixelRatio: 2,
-      cacheBust: true,
-      useCORS: true,
-      filter: (n: HTMLElement) => !(n.classList && n.classList.contains('export-exclude')),
-    };
-
-    try {
-      if (document.fonts && (document.fonts as any).ready) {
-        await (document.fonts as any).ready;
-      }
-
-      const images = Array.from(node.querySelectorAll('img'));
-      await Promise.all(
-        images.map((img) => {
-          if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
-          return new Promise<void>((resolve) => {
-            const done = () => resolve();
-            img.addEventListener('load', done, { once: true });
-            img.addEventListener('error', done, { once: true });
-          });
-        })
-      );
-
-      // Warm-up: html-to-image's first call often misses lazily-loaded resources
-      // (Iconify SVGs, custom fonts, drop-shadow filter targets). Discard it.
-      await toPng(node as HTMLElement, options);
-      const dataUrl = await toPng(node as HTMLElement, options);
-
-      const link = document.createElement('a');
-      link.download = 'easy-cover.png';
-      link.href = dataUrl;
-      link.click();
-    } catch (err) {
-      console.error('Export failed', err);
-      alert('导出失败，请重试');
+  try {
+    // 1. 创建一个临时的 div 覆盖整个屏幕
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('请允许弹窗，以便导出图片');
+      return;
     }
-  };
+
+    // 2. 获取当前画布的实际像素尺寸
+    const originalWidth = node.offsetWidth;
+    const originalHeight = node.offsetHeight;
+
+    // 3. 写入 HTML 结构，把画布内容塞进去
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Export</title>
+          <style>
+            body, html {
+              margin: 0;
+              padding: 0;
+              width: 100%;
+              height: 100%;
+              overflow: hidden;
+              background: white;
+            }
+            .canvas-container {
+              width: ${originalWidth}px;
+              height: ${originalHeight}px;
+              position: relative;
+              transform-origin: top left;
+              transform: scale(${window.devicePixelRatio || 1});
+            }
+            /* 确保图片和文字样式被正确复制 */
+            img { 
+              display: block; 
+              width: 100%; 
+              height: 100%; 
+              object-fit: contain; 
+            }
+            div { 
+              box-sizing: border-box; 
+            }
+          </style>
+        </head>
+        <body>
+          <div class="canvas-container">
+            ${node.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    // 4. 等待图片加载完成（非常重要！）
+    await new Promise<void>((resolve) => {
+      const checkImages = () => {
+        const images = printWindow.document.querySelectorAll('img');
+        let loadedCount = 0;
+        const total = images.length;
+        if (total === 0) {
+          resolve();
+          return;
+        }
+        images.forEach((img) => {
+          if (img.complete) {
+            loadedCount++;
+            if (loadedCount === total) resolve();
+          } else {
+            img.addEventListener('load', () => {
+              loadedCount++;
+              if (loadedCount === total) resolve();
+            });
+          }
+        });
+      };
+      checkImages();
+    });
+
+    // 5. 执行打印（用户可以选择“另存为 PDF”或直接打印）
+    printWindow.print();
+  } catch (error) {
+    console.error('导出失败:', error);
+    alert('导出失败，请重试');
+  }
+};
 
   const handleFit = (mode: 'contain' | 'cover') => {
       // Always reset position and rotation
