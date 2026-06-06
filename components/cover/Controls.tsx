@@ -100,13 +100,25 @@ export default function Controls() {
   const pct = (p: number) => Math.max(1, Math.round(canvasMax * p));
 
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      store.updateBackground({ type: 'image', imageUrl: url });
-    }
-  };
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const blobUrl = URL.createObjectURL(file);
+
+  try {
+    const base64 = await blobToBase64(blobUrl);
+    store.updateBackground({
+      type: 'image',
+      imageUrl: base64, // ✅ 关键：不用 blob
+    });
+  } catch (err) {
+    console.error('图片转换失败', err);
+    alert('图片处理失败');
+  } finally {
+    URL.revokeObjectURL(blobUrl);
+  }
+};
 
   const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
