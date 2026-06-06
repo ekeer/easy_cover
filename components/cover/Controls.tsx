@@ -210,61 +210,54 @@ export default function Controls() {
   const node = document.getElementById('canvas-export-target');
   if (!node) return;
 
-  // ✅ 关键：先把所有图片转成 Base64，彻底干掉 404 和 CORS
-  const images = node.getElementsByTagName('img');
-  for (let i = 0; i < images.length; i++) {
-    const img = images[i];
-    if (img.src.startsWith('http')) {
-      try {
-        const response = await fetch(img.src);
-        const blob = await response.blob();
-        const reader = new FileReader();
-        await new Promise((resolve) => {
-          reader.onload = () => {
-            img.src = reader.result as string;
-            resolve(null);
-          };
-          reader.readAsDataURL(blob);
-        });
-      } catch (e) {
-        console.warn('图片转换失败，跳过:', img.src);
+  try {
+    // 1. 找到所有的 img 标签
+    const images = node.getElementsByTagName('img');
+    
+    // 2. 遍历图片，把 blob url 转成 base64
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      // 检查是否是 blob 链接
+      if (img.src.startsWith('blob:')) {
+        try {
+          const response = await fetch(img.src);
+          const blob = await response.blob();
+          const reader = new FileReader();
+          await new Promise((resolve) => {
+            reader.onload = () => {
+              img.src = reader.result as string; // 替换成 base64
+              resolve(null);
+            };
+            reader.readAsDataURL(blob);
+          });
+        } catch (e) {
+          console.warn('图片转换失败，跳过:', img.src);
+        }
       }
     }
-  }
 
-  // ✅ 强制等待字体加载（解决文字变方块）
-  if (document.fonts && document.fonts.ready) {
-    await document.fonts.ready;
-  }
+    // 3. 等待一下，确保所有图片都加载完了，再调用 html-to-image
+    await new Promise(resolve => setTimeout(resolve, 500)); // 稍微延时一下更稳
 
-  // ✅ 给 html-to-image 的“最强”配置
-  const options = {
-    quality: 1,
-    pixelRatio: 2,
-    cacheBust: true,
-    useCORS: true,
-    allowTaint: true, // 👈 允许污染（有时候反而能成）
-    backgroundColor: '#ffffff', // 强制白底，防止透明背景出问题
-    filter: (node: HTMLElement) => {
-      // 去掉不需要的导出元素（如标尺）
-      return !node.classList?.contains('export-exclude');
-    },
-  };
+    // 4. 原来的导出逻辑
+    const dataUrl = await toPng(node, { 
+      quality: 1,
+      pixelRatio: 2, // 保持高清
+      style: {
+        transform: 'scale(1)', // 防止缩放影响
+        transformOrigin: 'top left'
+      }
+    });
 
-  try {
-    // 预热一次（解决第一次点击失败的问题）
-    await toPng(node as HTMLElement, options).catch(() => {});
-    
-    // 正式导出
-    const dataUrl = await toPng(node as HTMLElement, options);
-
+    // 5. 下载
     const link = document.createElement('a');
     link.download = `easy-cover-${Date.now()}.png`;
     link.href = dataUrl;
     link.click();
+    
   } catch (err) {
     console.error('导出失败:', err);
-    alert('导出失败，请稍后重试。如果持续失败，请尝试更换浏览器（推荐 Chrome）。');
+    alert('导出失败，请重试。如果持续失败，请尝试更换浏览器（推荐 Chrome）。');
   }
 };
 
