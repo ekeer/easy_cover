@@ -185,6 +185,7 @@ export default function Controls() {
       quality: 0.95,
       pixelRatio: 2,
       cacheBust: true,
+      useCORS: true,
       filter: (n: HTMLElement) => !(n.classList && n.classList.contains('export-exclude')),
     };
 
