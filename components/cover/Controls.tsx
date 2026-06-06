@@ -18,6 +18,23 @@ import { Download, RotateCcw, Maximize, Github, ExternalLink, Settings2, Link as
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toPng } from 'html-to-image';
 
+export const blobToBase64 = (blobUrl: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = reject;
+    img.src = blobUrl;
+  });
+};
+
 // Helper component for Reset Button
 const ResetButton = ({ onClick, tooltip = "重置" }: { onClick: () => void, tooltip?: string }) => (
     <Button 
