@@ -210,90 +210,61 @@ export default function Controls() {
   const node = document.getElementById('canvas-export-target');
   if (!node) return;
 
-  try {
-    // 1. 创建一个临时的 div 覆盖整个屏幕
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('请允许弹窗，以便导出图片');
-      return;
-    }
-
-    // 2. 获取当前画布的实际像素尺寸
-    const originalWidth = node.offsetWidth;
-    const originalHeight = node.offsetHeight;
-
-    // 3. 写入 HTML 结构，把画布内容塞进去
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Export</title>
-          <style>
-            body, html {
-              margin: 0;
-              padding: 0;
-              width: 100%;
-              height: 100%;
-              overflow: hidden;
-              background: white;
-            }
-            .canvas-container {
-              width: ${originalWidth}px;
-              height: ${originalHeight}px;
-              position: relative;
-              transform-origin: top left;
-              transform: scale(${window.devicePixelRatio || 1});
-            }
-            /* 确保图片和文字样式被正确复制 */
-            img { 
-              display: block; 
-              width: 100%; 
-              height: 100%; 
-              object-fit: contain; 
-            }
-            div { 
-              box-sizing: border-box; 
-            }
-          </style>
-        </head>
-        <body>
-          <div class="canvas-container">
-            ${node.innerHTML}
-          </div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-
-    // 4. 等待图片加载完成（非常重要！）
-    await new Promise<void>((resolve) => {
-      const checkImages = () => {
-        const images = printWindow.document.querySelectorAll('img');
-        let loadedCount = 0;
-        const total = images.length;
-        if (total === 0) {
-          resolve();
-          return;
-        }
-        images.forEach((img) => {
-          if (img.complete) {
-            loadedCount++;
-            if (loadedCount === total) resolve();
-          } else {
-            img.addEventListener('load', () => {
-              loadedCount++;
-              if (loadedCount === total) resolve();
-            });
-          }
+  // ✅ 关键：先把所有图片转成 Base64，彻底干掉 404 和 CORS
+  const images = node.getElementsByTagName('img');
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    if (img.src.startsWith('http')) {
+      try {
+        const response = await fetch(img.src);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        await new Promise((resolve) => {
+          reader.onload = () => {
+            img.src = reader.result as string;
+            resolve(null);
+          };
+          reader.readAsDataURL(blob);
         });
-      };
-      checkImages();
-    });
+      } catch (e) {
+        console.warn('图片转换失败，跳过:', img.src);
+      }
+    }
+  }
 
-    // 5. 执行打印（用户可以选择“另存为 PDF”或直接打印）
-    printWindow.print();
-  } catch (error) {
-    console.error('导出失败:', error);
-    alert('导出失败，请重试');
+  // ✅ 强制等待字体加载（解决文字变方块）
+  if (document.fonts && document.fonts.ready) {
+    await document.fonts.ready;
+  }
+
+  // ✅ 给 html-to-image 的“最强”配置
+  const options = {
+    quality: 1,
+    pixelRatio: 2,
+    cacheBust: true,
+    useCORS: true,
+    allowTaint: true, // 👈 允许污染（有时候反而能成）
+    backgroundColor: '#ffffff', // 强制白底，防止透明背景出问题
+    filter: (node: HTMLElement) => {
+      // 去掉不需要的导出元素（如标尺）
+      return !node.classList?.contains('export-exclude');
+    },
+  };
+
+  try {
+    // 预热一次（解决第一次点击失败的问题）
+    await toPng(node as HTMLElement, options).catch(() => {});
+    
+    // 正式导出
+    const dataUrl = await toPng(node as HTMLElement, options);
+
+    const link = document.createElement('a');
+    link.download = `easy-cover-${Date.now()}.png`;
+    link.href = dataUrl;
+    link.click();
+  } catch (err) {
+    console.error('导出失败:', err);
+    alert('导出失败，请稍后重试。如果持续失败，请尝试更换浏览器（推荐 Chrome）。');
   }
 };
 
