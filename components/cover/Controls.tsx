@@ -247,12 +247,11 @@ export default function Controls() {
 
     // ✅ 3. 导出（这时候标尺和网格已经看不见了）
     const dataUrl = await toPng(node as HTMLElement, {
-      quality: 1,
-      pixelRatio: 2,
-      cacheBust: true,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-    });
+  quality: 1,
+  pixelRatio: 2,
+  cacheBust: true,
+  backgroundColor: '#ffffff',
+});
 
     // ✅ 4. 恢复辅助元素的显示
     hiddenElements.forEach((el, i) => {
