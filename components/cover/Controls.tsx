@@ -210,14 +210,21 @@ export default function Controls() {
   const node = document.getElementById('canvas-export-target');
   if (!node) return;
 
+  // ✅ 1. 先找到所有"不导出"的元素，强制隐藏
+  const hiddenElements = node.querySelectorAll('.export-exclude');
+  const originalDisplays: string[] = [];
+  
+  hiddenElements.forEach((el, i) => {
+    const htmlEl = el as HTMLElement;
+    originalDisplays[i] = htmlEl.style.display;
+    htmlEl.style.display = 'none';  // 👈 强制隐藏
+  });
+
   try {
-    // 1. 找到所有的 img 标签
+    // ✅ 2. 转 Base64（你之前的成功逻辑保留）
     const images = node.getElementsByTagName('img');
-    
-    // 2. 遍历图片，把 blob url 转成 base64
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
-      // 检查是否是 blob 链接
       if (img.src.startsWith('blob:')) {
         try {
           const response = await fetch(img.src);
@@ -225,7 +232,7 @@ export default function Controls() {
           const reader = new FileReader();
           await new Promise((resolve) => {
             reader.onload = () => {
-              img.src = reader.result as string; // 替换成 base64
+              img.src = reader.result as string;
               resolve(null);
             };
             reader.readAsDataURL(blob);
@@ -236,28 +243,37 @@ export default function Controls() {
       }
     }
 
-    // 3. 等待一下，确保所有图片都加载完了，再调用 html-to-image
-    await new Promise(resolve => setTimeout(resolve, 500)); // 稍微延时一下更稳
+    await new Promise(resolve => setTimeout(resolve, 300));
 
-    // 4. 原来的导出逻辑
-    const dataUrl = await toPng(node, { 
+    // ✅ 3. 导出（这时候标尺和网格已经看不见了）
+    const dataUrl = await toPng(node as HTMLElement, {
       quality: 1,
-      pixelRatio: 2, // 保持高清
-      style: {
-        transform: 'scale(1)', // 防止缩放影响
-        transformOrigin: 'top left'
-      }
+      pixelRatio: 2,
+      cacheBust: true,
+      useCORS: true,
+      backgroundColor: '#ffffff',
     });
 
-    // 5. 下载
+    // ✅ 4. 恢复辅助元素的显示
+    hiddenElements.forEach((el, i) => {
+      (el as HTMLElement).style.display = originalDisplays[i] || '';
+    });
+
+    // ✅ 5. 下载
     const link = document.createElement('a');
     link.download = `easy-cover-${Date.now()}.png`;
     link.href = dataUrl;
     link.click();
-    
+
   } catch (err) {
     console.error('导出失败:', err);
-    alert('导出失败，请重试。如果持续失败，请尝试更换浏览器（推荐 Chrome）。');
+    
+    // ⚠️ 出错也要恢复显示！
+    hiddenElements.forEach((el, i) => {
+      (el as HTMLElement).style.display = originalDisplays[i] || '';
+    });
+    
+    alert('导出失败，请重试');
   }
 };
 
